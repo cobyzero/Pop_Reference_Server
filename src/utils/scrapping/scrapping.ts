@@ -10,7 +10,6 @@ async function scrapGoogleScholar(
   results: ScrappingModel[];
   totalResults: number;
   currentPage: number;
-  source: string;
 }> {
   try {
     const url = `https://scholar.google.com/scholar?q=${encodeURIComponent(query)}&start=${page * 10}&hl=es&as_sdt=0&ie=UTF-8&oe=UTF-8`;
@@ -53,6 +52,7 @@ async function scrapGoogleScholar(
           link,
           description,
           domain,
+          source: 'google-scholar',
         });
       }
     });
@@ -78,7 +78,6 @@ async function scrapGoogleScholar(
       results: resultModels,
       totalResults,
       currentPage,
-      source: 'google-scholar',
     };
   } catch (error) {
     console.error('Error al extraer datos de Google Scholar:', error);
@@ -86,9 +85,180 @@ async function scrapGoogleScholar(
       results: [],
       totalResults: 0,
       currentPage: page,
-      source: 'google-scholar',
     };
   }
 }
 
-export { scrapGoogleScholar };
+async function scrapProquest(
+  query: string,
+  page: number = 0,
+): Promise<{
+  results: ScrappingModel[];
+  totalResults: number;
+  currentPage: number;
+}> {
+  try {
+    const url = `https://www.proquest.com/results/${encodeURIComponent(query)}?accountid=0&page=${page}`;
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+
+    const results: any[] = [];
+
+    console.log('Estructura HTML:', $.html()); // Agregar para depuración
+
+    $('div[data-testid="document-result-item"]').each((index, element) => {
+      const title = $(element)
+        .find('h3[data-testid="document-title"]')
+        .text()
+        .trim();
+      const authors = $(element)
+        .find('span[data-testid="authors"]')
+        .text()
+        .trim();
+      const year = $(element).find('span[data-testid="pubDate"]').text().trim();
+      const link = $(element)
+        .find('h3[data-testid="document-title"] a')
+        .attr('href');
+      const description = $(element)
+        .find('div[data-testid="abstract-snippet"]')
+        .text()
+        .trim();
+      let domain = '';
+
+      try {
+        if (link) {
+          const urlObject = new URL(link);
+          domain = urlObject.hostname;
+        }
+      } catch (error) {
+        console.error('Error al extraer el dominio:', error);
+      }
+
+      if (title && authors && link) {
+        results.push({
+          title,
+          authors,
+          year,
+          link,
+          description,
+          domain,
+          source: 'proquest',
+        });
+      }
+    });
+
+    console.log('Resultados encontrados:', results.length); // Agregar para depuración
+
+    const totalResultsText = $('span[data-testid="results-count"]').text();
+    const totalResultsMatch = totalResultsText.match(/(\d+)/);
+    const totalResults = totalResultsMatch
+      ? parseInt(totalResultsMatch[1], 10)
+      : 0;
+
+    const resultModels: ScrappingModel[] = results.map(
+      (result) => new ScrappingModel(result),
+    );
+
+    return {
+      results: resultModels,
+      totalResults,
+      currentPage: page,
+    };
+  } catch (error) {
+    console.error('Error al extraer datos de Proquest:', error);
+    return {
+      results: [],
+      totalResults: 0,
+      currentPage: page,
+    };
+  }
+}
+
+async function scrapScielo(
+  query: string,
+  page: number = 1,
+): Promise<{
+  results: ScrappingModel[];
+  totalResults: number;
+  currentPage: number;
+}> {
+  try {
+    const baseUrl = 'https://search.scielo.org/';
+    const url = `${baseUrl}?q=${encodeURIComponent(query)}&page=${page}`;
+
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+
+    const results: any[] = [];
+
+    $('.results .item').each((_, element) => {
+      const title = $(element).find('.title').text().trim();
+      const authors = $(element).find('.author').text().trim();
+
+      const year = $(element).find('.line').text().match(/\d{4}/)?.[0] || '';
+      const link = $(element).find('.DOIResults').text().trim();
+
+      let description = $('div[id*="scl_es"]').text().trim();
+
+      if (!description) {
+        description = $('div[id*="scl_en"]').text().trim();
+      }
+      if (!description) {
+        description = $('div[id*="scl_pt"]').text().trim();
+      }
+      let domain = '';
+
+      try {
+        if (link) {
+          const urlObject = new URL(link);
+          domain = urlObject.hostname;
+        }
+      } catch (error) {
+        console.error('Error al extraer el dominio:', error);
+      }
+
+      if (title && authors && link) {
+        results.push({
+          title,
+          authors,
+          year,
+          link,
+          description,
+          domain,
+          source: 'scielo',
+        });
+      }
+    });
+
+    console.log('Resultados encontrados:', results.length);
+
+    const totalResultsText = $('.results-stats').text();
+    const totalResultsMatch = totalResultsText.match(/(\d+)/);
+    const totalResults = Number(
+      $('.filterTitle strong').text().replace(/\D/g, '') || 0,
+    );
+
+    const resultModels: ScrappingModel[] = results.map(
+      (result) =>
+        new ScrappingModel({
+          ...result,
+          description: result.description,
+        }),
+    );
+
+    return {
+      results: resultModels,
+      totalResults,
+      currentPage: page,
+    };
+  } catch (error) {
+    console.error('Error al extraer datos de Scielo:', error);
+    return {
+      results: [],
+      totalResults: 0,
+      currentPage: page,
+    };
+  }
+}
+
+export { scrapGoogleScholar, scrapProquest, scrapScielo };
