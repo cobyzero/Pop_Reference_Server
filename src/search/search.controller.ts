@@ -8,10 +8,35 @@ export class SearchController {
   async getGoogleScholar(
     @Query('query') query: string,
     @Query('page') page: number = 0,
+    @Query('google') google: boolean = true,
+    @Query('scielo') scielo: boolean = true,
+    @Query('secureMode') secureMode: boolean = true,
   ) {
-    const google = await this.searchService.getGoogleScholar(query, page);
-    const proquest = await this.searchService.getProquest(query, page);
-    const scielo = await this.searchService.getScielo(query, page);
-    return { google, proquest, scielo };
+    const dataGoogle = google
+      ? await this.searchService.getGoogleScholar(query, page, secureMode)
+      : {
+          results: [],
+          totalResults: 0,
+          currentPage: 0,
+        };
+
+    const dataScielo = scielo
+      ? await this.searchService.getScielo(query, page, secureMode)
+      : {
+          results: [],
+          totalResults: 0,
+          currentPage: 0,
+        };
+
+    return {
+      results: [...dataGoogle.results, ...dataScielo.results].sort((a, b) =>
+        a.year.localeCompare(b.year),
+      ),
+      totals: {
+        google: dataGoogle.totalResults,
+        scielo: dataScielo.totalResults,
+      },
+      currentPage: page,
+    };
   }
 }

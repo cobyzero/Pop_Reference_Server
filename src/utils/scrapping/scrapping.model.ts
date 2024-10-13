@@ -5,7 +5,7 @@ export class ScrappingModel {
   link: string;
   domain: string;
   description: string;
-
+  source: string;
   constructor(data: any) {
     this.title = data.title;
     this.authors = data.authors;
@@ -13,5 +13,6 @@ export class ScrappingModel {
     this.link = data.link;
     this.domain = data.domain;
     this.description = data.description;
+    this.source = data.source;
   }
 }

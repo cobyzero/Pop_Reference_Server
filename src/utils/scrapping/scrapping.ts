@@ -6,6 +6,7 @@ import { ScrappingModel } from './scrapping.model';
 async function scrapGoogleScholar(
   query: string,
   page: number = 0,
+  secureMode: boolean = true,
 ): Promise<{
   results: ScrappingModel[];
   totalResults: number;
@@ -29,31 +30,37 @@ async function scrapGoogleScholar(
       const authorInfo = $(element).find('.gs_a').text().trim();
 
       // Parsear la información de autores, año y fuente
-      const authorInfoParts = authorInfo.split(' - ');
-      const authors = authorInfoParts[0].trim();
-      const year = authorInfoParts[1]?.match(/\d{4}/)?.[0] || '';
+      let authorInfoParts = authorInfo.split('-');
 
-      const link = $(element).find('.gs_rt a').attr('href') || '';
-      const description = $(element).find('.gs_rs').text().trim();
+      if (authorInfoParts.length >= 2) {
+        const authors = authorInfoParts[0].trim();
+        const year = authorInfoParts[1].trim();
 
-      let domain = '';
-      try {
-        const urlObject = new URL(link);
-        domain = urlObject.hostname;
-      } catch (error) {
-        console.error('Error al extraer el dominio:', error);
-      }
+        const link = $(element).find('.gs_rt a').attr('href') || '';
+        const description = $(element).find('.gs_rs').text().trim();
 
-      if (title && authors && link) {
-        results.push({
-          title,
-          authors,
-          year,
-          link,
-          description,
-          domain,
-          source: 'google-scholar',
-        });
+        let domain = '';
+        if (link) {
+          try {
+            const urlObject = new URL(link);
+            domain = urlObject.hostname;
+          } catch (error) {
+            console.error('Error al extraer el dominio:', error);
+          }
+        }
+
+        const filter = secureMode ? true : title && authors && link;
+        if (filter) {
+          results.push({
+            title,
+            authors,
+            year,
+            link,
+            description,
+            domain,
+            source: 'google-scholar',
+          });
+        }
       }
     });
 
@@ -89,94 +96,10 @@ async function scrapGoogleScholar(
   }
 }
 
-async function scrapProquest(
-  query: string,
-  page: number = 0,
-): Promise<{
-  results: ScrappingModel[];
-  totalResults: number;
-  currentPage: number;
-}> {
-  try {
-    const url = `https://www.proquest.com/results/${encodeURIComponent(query)}?accountid=0&page=${page}`;
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
-
-    const results: any[] = [];
-
-    console.log('Estructura HTML:', $.html()); // Agregar para depuración
-
-    $('div[data-testid="document-result-item"]').each((index, element) => {
-      const title = $(element)
-        .find('h3[data-testid="document-title"]')
-        .text()
-        .trim();
-      const authors = $(element)
-        .find('span[data-testid="authors"]')
-        .text()
-        .trim();
-      const year = $(element).find('span[data-testid="pubDate"]').text().trim();
-      const link = $(element)
-        .find('h3[data-testid="document-title"] a')
-        .attr('href');
-      const description = $(element)
-        .find('div[data-testid="abstract-snippet"]')
-        .text()
-        .trim();
-      let domain = '';
-
-      try {
-        if (link) {
-          const urlObject = new URL(link);
-          domain = urlObject.hostname;
-        }
-      } catch (error) {
-        console.error('Error al extraer el dominio:', error);
-      }
-
-      if (title && authors && link) {
-        results.push({
-          title,
-          authors,
-          year,
-          link,
-          description,
-          domain,
-          source: 'proquest',
-        });
-      }
-    });
-
-    console.log('Resultados encontrados:', results.length); // Agregar para depuración
-
-    const totalResultsText = $('span[data-testid="results-count"]').text();
-    const totalResultsMatch = totalResultsText.match(/(\d+)/);
-    const totalResults = totalResultsMatch
-      ? parseInt(totalResultsMatch[1], 10)
-      : 0;
-
-    const resultModels: ScrappingModel[] = results.map(
-      (result) => new ScrappingModel(result),
-    );
-
-    return {
-      results: resultModels,
-      totalResults,
-      currentPage: page,
-    };
-  } catch (error) {
-    console.error('Error al extraer datos de Proquest:', error);
-    return {
-      results: [],
-      totalResults: 0,
-      currentPage: page,
-    };
-  }
-}
-
 async function scrapScielo(
   query: string,
-  page: number = 1,
+  page: number = 0,
+  secureMode: boolean = true,
 ): Promise<{
   results: ScrappingModel[];
   totalResults: number;
@@ -216,8 +139,8 @@ async function scrapScielo(
       } catch (error) {
         console.error('Error al extraer el dominio:', error);
       }
-
-      if (title && authors && link) {
+      const filter = secureMode ? true : title && authors && link;
+      if (filter) {
         results.push({
           title,
           authors,
@@ -261,4 +184,4 @@ async function scrapScielo(
   }
 }
 
-export { scrapGoogleScholar, scrapProquest, scrapScielo };
+export { scrapGoogleScholar, scrapScielo };
